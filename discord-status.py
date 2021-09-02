@@ -16,7 +16,7 @@ from pypresence import Presence
 from status_prefs import discord_status_prefs 
 
 #use your own!
-RPI_APP_ID = "882453993622740994"
+RPI_APP_ID = ""
 
 
 class discord_status_dev(GObject.Object, Peas.Activatable):
@@ -178,7 +178,7 @@ class discord_status_dev(GObject.Object, Peas.Activatable):
                 print("\n \n \n BASE64 STUFF \n \n \n")
                 coverBase64 = base64.b64encode(image.read())
                 coverBase64_2 = coverBase64.decode()
-
+		#Couldn't send b64 encoded data as python wouldn't allow it, so i decoded and saved to a new variable. I believe this may be where the problem is coming from
                 payload = { "name": coverName, "image": "data:image/;base64,"+coverBase64_2}
                 print(payload)
                 requests.post("https://discordapp.com/api/oauth2/applications/"+RPI_APP_ID+"/assets",data = payload )
