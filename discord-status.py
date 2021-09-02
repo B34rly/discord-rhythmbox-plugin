@@ -5,6 +5,7 @@ import urllib
 import requests
 import mimetypes
 import base64
+import re
 
 gi.require_version('Notify', '0.7')
 gi.require_version('Gtk', '3.0')
@@ -15,7 +16,8 @@ from pypresence import Presence
 from status_prefs import discord_status_prefs 
 
 #use your own!
-RPI_APP_ID = ""
+RPI_APP_ID = "882453993622740994"
+
 
 class discord_status_dev(GObject.Object, Peas.Activatable):
   GObject.type_register(discord_status_prefs)
@@ -160,25 +162,25 @@ class discord_status_dev(GObject.Object, Peas.Activatable):
     #Encrypts it with base64 and uploads it to discord
 
     if os.path.isdir(coverPath):
-      #print(coverPath)
+      print(coverPath)
       for f in os.listdir(coverPath):
           coverImage = os.path.join(coverPath, f)
           mt = mimetypes.guess_type(coverImage)[0]
           if mt and mt.startswith('image/'):
-              #print("\n \n \n FOUND IMAGE \n \n \n")
+              print("\n \n \n FOUND IMAGE \n \n \n")
               coverListFile.close()
               coverListFile = open(".local/share/rhythmbox/plugins/discord-rhythmbox-plugin/coverLists.txt", "at")
 
-              #print(coverImage)
+              print(coverImage)
               coverListFile.write(coverName + "\n")
               
               with open(coverImage, "rb") as image:
-                #print("\n \n \n BASE64 STUFF \n \n \n")
+                print("\n \n \n BASE64 STUFF \n \n \n")
                 coverBase64 = base64.b64encode(image.read())
                 coverBase64_2 = coverBase64.decode()
 
                 payload = { "name": coverName, "image": "data:image/;base64,"+coverBase64_2}
-                #print(payload)
+                print(payload)
                 requests.post("https://discordapp.com/api/oauth2/applications/"+RPI_APP_ID+"/assets",data = payload )
 
                 return True
@@ -188,11 +190,16 @@ class discord_status_dev(GObject.Object, Peas.Activatable):
     
     info = self.get_info(sp)
 
-    coverName = "%s - %s" %(info[2], info[0])
+    coverName = ("%s - %s" %(info[2], info[0])).lower().replace(" ","_")
+    coverName = re.sub(r'[^\w]', '_', coverName)
+    #This removes all spaces, makes it lowercase and removes symbols to make it fit with discords character limits
+    #Some symbols do work but I have no way to differentiate soooo
+    print(coverName)
     coverListFile = open(".local/share/rhythmbox/plugins/discord-rhythmbox-plugin/coverLists.txt", "rt")
     coverList = coverListFile.readlines()
 
-    coverPath=os.path.dirname(urllib.request.url2pathname(sp.get_playing_entry().get_playback_uri()).replace('file://', ''))   
+    coverPath=os.path.dirname(urllib.request.url2pathname(sp.get_playing_entry().get_playback_uri()).replace('file://', ''))
+    
 
     if coverList != []:
       for i in coverList:
