@@ -1,7 +1,11 @@
 import gi
 import time
 import os
-import json
+import urllib
+import requests
+import mimetypes
+import base64
+
 gi.require_version('Notify', '0.7')
 gi.require_version('Gtk', '3.0')
 from gi.repository import Notify, Gtk
@@ -10,14 +14,14 @@ from gi.repository import RB
 from pypresence import Presence
 from status_prefs import discord_status_prefs 
 
+#use your own!
+RPI_APP_ID = ""
+
 class discord_status_dev(GObject.Object, Peas.Activatable):
-  path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "settings.json")
-
-  with open(path) as file:
-    settings = json.load(file)
-
+  GObject.type_register(discord_status_prefs)
+  prefs = discord_status_prefs()
+  settings = prefs.load_settings()
   show_notifs = settings["show_notifs"]
-  time_style = settings["time_style"]
 
   try:
     Notify.init("Rhythmbox")
@@ -25,7 +29,7 @@ class discord_status_dev(GObject.Object, Peas.Activatable):
     print("Failed to init Notify. Is the notificaion service running?")
 
   is_streaming = False
-  RPC = Presence("589905203533185064")
+  RPC = Presence(RPI_APP_ID)
   connected = False
   gave_up = False
   
@@ -84,6 +88,8 @@ class discord_status_dev(GObject.Object, Peas.Activatable):
   start_date = None
   playing_date = None
   is_playing = False
+  availableCovers = []
+
   def __init__ (self):
     GObject.Object.__init__ (self)
 
@@ -136,11 +142,71 @@ class discord_status_dev(GObject.Object, Peas.Activatable):
         duration = 0
       else:
         duration = sp.get_playing_entry().get_ulong(RB.RhythmDBPropType.DURATION)
-
+	
       if len(album) < 2:
         album = "%s​" %(album)
         
       return [album, title, artist, duration]
+  
+  def upload_cover(self, coverName, coverPath, coverListFile, sp):
+
+    #Converts the file:// url of the current song to a readable directory
+    coverPath=os.path.dirname(urllib.request.url2pathname(sp.get_playing_entry().get_playback_uri()).replace('file://', ''))
+    coverImage = None
+
+    #I yoinked part of this code from https://github.com/fossfreedom/desktop-art/ 
+    #It searches the given directory for something with the type of image
+    #Then writes it to a file that it's been found
+    #Encrypts it with base64 and uploads it to discord
+
+    if os.path.isdir(coverPath):
+      #print(coverPath)
+      for f in os.listdir(coverPath):
+          coverImage = os.path.join(coverPath, f)
+          mt = mimetypes.guess_type(coverImage)[0]
+          if mt and mt.startswith('image/'):
+              #print("\n \n \n FOUND IMAGE \n \n \n")
+              coverListFile.close()
+              coverListFile = open(".local/share/rhythmbox/plugins/discord-rhythmbox-plugin/coverLists.txt", "at")
+
+              #print(coverImage)
+              coverListFile.write(coverName + "\n")
+              
+              with open(coverImage, "rb") as image:
+                #print("\n \n \n BASE64 STUFF \n \n \n")
+                coverBase64 = base64.b64encode(image.read())
+                coverBase64_2 = coverBase64.decode()
+
+                payload = { "name": coverName, "image": "data:image/;base64,"+coverBase64_2}
+                #print(payload)
+                requests.post("https://discordapp.com/api/oauth2/applications/"+RPI_APP_ID+"/assets",data = payload )
+
+                return True
+    return False
+  
+  def get_cover(self, sp):
+    
+    info = self.get_info(sp)
+
+    coverName = "%s - %s" %(info[2], info[0])
+    coverListFile = open(".local/share/rhythmbox/plugins/discord-rhythmbox-plugin/coverLists.txt", "rt")
+    coverList = coverListFile.readlines()
+
+    coverPath=os.path.dirname(urllib.request.url2pathname(sp.get_playing_entry().get_playback_uri()).replace('file://', ''))   
+
+    if coverList != []:
+      for i in coverList:
+        if i == (coverName+"\n"):
+          return coverName
+      if self.upload_cover(coverName,coverPath,coverListFile,sp):
+        return coverName
+      else: 
+        return "rhythmbox"
+    else:
+      if self.upload_cover(coverName,coverPath,coverListFile,sp):
+        return coverName
+      else: 
+        return "rhythmbox"
 
   def playing_song_property_changed(self, sp, uri, property, old, newvalue):
       print("playing_song_property_changed: %s %s %s %s" %(uri, property, old, newvalue))
@@ -148,10 +214,10 @@ class discord_status_dev(GObject.Object, Peas.Activatable):
       info = self.get_info(sp)
       if property == "rb:stream-song-title":
         self.is_streaming = True
-        self.update_streaming_rpc(info, newvalue)
+        self.update_streaming_rpc(info, newvalue, self.get_cover(sp))
 
-  def update_streaming_rpc(self, info, d):
-    self.RPC.update(state=info[1][0:127], details=d[0:127], large_image="rhythmbox", small_image="play", small_text="Streaming", start=int(time.time()))
+  def update_streaming_rpc(self, info, d, cover):
+    self.RPC.update(state=info[1][0:127], details=d[0:127], large_image=cover, small_image="play", small_text="Streaming", start=int(time.time()))
 
   def playing_entry_changed(self, sp, entry):
     if sp.get_playing_entry():
@@ -163,10 +229,12 @@ class discord_status_dev(GObject.Object, Peas.Activatable):
       artist = info[2]
       duration = info[3]
 
+      cover = self.get_cover(sp)
+
       if duration == 0 and not self.is_streaming:
-        self.update_streaming_rpc(info, "Unknown - Unknown")
+        self.update_streaming_rpc(info, "Unknown - Unknown", cover)
       elif duration == 0 and self.is_streaming:
-        self.update_streaming_rpc(info, "Unknown - Unknown")
+        self.update_streaming_rpc(info, "Unknown - Unknown", cover)
         return
       else:
         self.is_streaming = False
@@ -176,13 +244,15 @@ class discord_status_dev(GObject.Object, Peas.Activatable):
 
       start_time = int(time.time())
       pos = sp.get_playing_time().time
-      end_time = (start_time + duration - pos) if self.time_style == 1 else None
-      self.RPC.update(state=album[0:127], details=details[0:127], large_image="rhythmbox", small_image="play", small_text="Playing", start=start_time, end=end_time)
+      end_time = start_time + duration - pos
+
+      self.RPC.update(state=album[0:127], details=details[0:127], large_image=cover, small_image="play", small_text="Playing", start=start_time, end=end_time)
 
   def playing_changed(self, sp, playing):
     album = None
     title = None
     artist = None
+    cover = None
     if sp.get_playing_entry():
       info = self.get_info(sp)
       album = info[0]
@@ -190,8 +260,10 @@ class discord_status_dev(GObject.Object, Peas.Activatable):
       artist = info[2]
       duration = info[3]
 
+      cover = self.get_cover(sp)
+
       if duration == 0 and not self.is_streaming:
-        self.update_streaming_rpc(info, "Unknown - Unknown")
+        self.update_streaming_rpc(info, "Unknown - Unknown", cover)
       elif duration == 0:
         return
       else:
@@ -201,20 +273,20 @@ class discord_status_dev(GObject.Object, Peas.Activatable):
 
       start_time = int(time.time())
       pos = sp.get_playing_time().time
-      end_time = (start_time + duration - pos) if self.time_style == 1 else None
+      end_time = start_time + duration - pos
 
     if playing:
       self.is_playing = True
-      self.RPC.update(state=album[0:127], details=details[0:127], large_image="rhythmbox", small_image="play", small_text="Playing", start=start_time, end=end_time)
+      self.RPC.update(state=album[0:127], details=details[0:127], large_image=cover, small_image="play", small_text="Playing", start=start_time, end=end_time)
     elif not playing and not sp.get_playing_entry():
       self.is_playing = False
       self.RPC.update(state="Playback Stopped", details="Rhythmbox Status Plugin", large_image="rhythmbox", small_image="stop", small_text="Stopped")
     else:
       self.is_playing = False
-      self.RPC.update(state=album[0:127], details=details[0:127], large_image="rhythmbox", small_image="pause", small_text="Paused")
+      self.RPC.update(state=album[0:127], details=details[0:127], large_image=cover, small_image="pause", small_text="Paused")
 
   def elapsed_changed(self, sp, elapsed):
-    if not self.playing_date or not self.is_playing or self.time_style == 0:
+    if not self.playing_date or not self.is_playing:
       return
     else:
       self.playing_date += 1
@@ -229,8 +301,10 @@ class discord_status_dev(GObject.Object, Peas.Activatable):
         artist = info[2]
         duration = info[3]
 
+        cover = self.get_cover(sp)
+
         if duration == 0 and not self.is_streaming:
-          self.update_streaming_rpc(info, "Unknown - Unknown")
+          self.update_streaming_rpc(info, "Unknown - Unknown", cover)
         elif duration == 0:
           return
         else:
@@ -240,6 +314,6 @@ class discord_status_dev(GObject.Object, Peas.Activatable):
 
         start_time = int(time.time())
         pos = sp.get_playing_time().time
-        end_time = (start_time + duration - pos) if self.time_style == 1 else None
+        end_time = start_time + duration - pos
 
-        self.RPC.update(state=album[0:127], details=details[0:127], large_image="rhythmbox", small_image="play", small_text="Playing", start=start_time, end=end_time)
+        self.RPC.update(state=album[0:127], details=details[0:127], large_image=cover, small_image="play", small_text="Playing", start=start_time, end=end_time)
