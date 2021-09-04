@@ -8,6 +8,7 @@ Note: This plugin does not work with Discord installed via Flatpak.
 ## Usage
 
 Fill in RPI_APP_ID in discord-status.py with your own application id in discord.com/developers
+
 Fill in RPI_TOKEN with your discord token
 
 ## Instalation
