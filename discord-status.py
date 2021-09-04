@@ -6,6 +6,7 @@ import requests
 import mimetypes
 import base64
 import re
+import json
 
 gi.require_version('Notify', '0.7')
 gi.require_version('Gtk', '3.0')
@@ -17,7 +18,8 @@ from status_prefs import discord_status_prefs
 
 #use your own!
 RPI_APP_ID = ""
-
+#use your personal discord token, make sure not to accidently share it with anyone
+RPI_TOKEN = ""
 
 class discord_status_dev(GObject.Object, Peas.Activatable):
   GObject.type_register(discord_status_prefs)
@@ -178,11 +180,14 @@ class discord_status_dev(GObject.Object, Peas.Activatable):
                 print("\n \n \n BASE64 STUFF \n \n \n")
                 coverBase64 = base64.b64encode(image.read())
                 coverBase64_2 = coverBase64.decode()
-		#Couldn't send b64 encoded data as python wouldn't allow it, so i decoded and saved to a new variable. I believe this may be where the problem is coming from
-                payload = { "name": coverName, "image": "data:image/;base64,"+coverBase64_2}
-                print(payload)
-                requests.post("https://discordapp.com/api/oauth2/applications/"+RPI_APP_ID+"/assets",data = payload )
 
+                payload = { "name": coverName,"type":1, "image": "data:image/;base64,"+coverBase64_2}
+                print(payload)
+                postHeaders = {'Content-Type': 'application/json','Authorization':RPI_TOKEN }
+                print(postHeaders)
+                response = requests.post("https://discordapp.com/api/oauth2/applications/"+RPI_APP_ID+"/assets",data = json.dumps(payload), headers = postHeaders)
+
+                print("\n \n \n \n \n \n RESPONSE:"+response.text+"\n \n \n \n \n \n")
                 return True
     return False
   
@@ -190,10 +195,12 @@ class discord_status_dev(GObject.Object, Peas.Activatable):
     
     info = self.get_info(sp)
 
-    coverName = ("%s - %s" %(info[2], info[0])).lower().replace(" ","_")
-    coverName = re.sub(r'[^\w]', '_', coverName)
+    coverName = ("%s %s" %(info[2], info[0])).lower().replace(" ","_")
+    
+    coverName = re.sub(r'[^a-z0-9_]+', '_', coverName)
+    coverName = coverName[:31]
     #This removes all spaces, makes it lowercase and removes symbols to make it fit with discords character limits
-    #Some symbols do work but I have no way to differentiate soooo
+    #Some symbols do work but I have no way to differentiate so i just got rid of them all
     print(coverName)
     coverListFile = open(".local/share/rhythmbox/plugins/discord-rhythmbox-plugin/coverLists.txt", "rt")
     coverList = coverListFile.readlines()
