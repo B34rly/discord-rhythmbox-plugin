@@ -7,10 +7,14 @@ Note: This plugin does not work with Discord installed via Flatpak.
 
 ## Usage
 
-Replace the ID in discord-status.py with your own application in discord.com/developers
+Fill in RPI_APP_ID in discord-status.py with your own application id in discord.com/developers
+Fill in RPI_TOKEN with your discord token
 
-- Install `pypresence`:
-- Install mimetypes
+## Instalation
+
+- Install `pypresence`
+- Install `mimetypes`
+
 On systems that use python2 and 3:
 
 `pip3 install pypresence
@@ -18,12 +22,14 @@ pip3 install mimetypes`
 
 Or if not:
  
-`pip install pypresence`
+`pip install pypresence
+pip install mimetypes`
+
 (You can try it with sudo if it does not work)
 
 - Clone the repo:
 
-`git clone https://github.com/ToppleKek/discord-rhythmbox-plugin.git`
+`git clone https://github.com/B34rly/discord-rhythmbox-plugin.git`
 
 - Put the `discord-rhythmbox-plugin` folder in `~/.local/share/rhythmbox/plugins`
 
