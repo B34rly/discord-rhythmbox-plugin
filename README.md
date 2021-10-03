@@ -1,30 +1,30 @@
 # discord-rhythmbox-plugin
 A simple plugin for rhythmbox to update your rich presence in discord.
-This is based off of the built-in im-status plugin and has some borrowed code; credit where credit is due!
-Also some code borrowed from https://github.com/fossfreedom/desktop-art/ 
+This is based off of the built-in im-status and webremote plugins and has some borrowed code; credit where credit is due!
 
 Note: This plugin does not work with Discord installed via Flatpak.
 
 ## Usage
 
-Fill in RPI_APP_ID in discord-status.py with your own application id in discord.com/developers
+Make a discord app at discord.com/developers
 
-Fill in RPI_TOKEN with your discord token
+Upload all the images in /icons to the rich presence assets tab
+
+Fill in RPI_APP_ID in discord-status.py with your own application id from 
+
+Fill in RPI_TOKEN with your discord token (google to get an up to date guide)
 
 ## Installation
 
 - Install `pypresence`
-- Install `mimetypes`
 
 On systems that use python2 and 3:
 
-`pip3 install pypresence
-pip3 install mimetypes`
+`pip3 install pypresence`
 
 Or if not:
  
-`pip install pypresence
-pip install mimetypes`
+`pip install pypresence`
 
 (You can try it with sudo if it does not work)
 
